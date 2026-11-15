@@ -19,10 +19,14 @@ export function normalizeTitle(title = '') {
     .trim();
 }
 
-export function findTrack(tracks, title) {
+export function findTrackIndex(tracks, title) {
   const wanted = normalizeTitle(title);
-  if (!wanted) return null;
-  return tracks.find((t) => normalizeTitle(t.title) === wanted) ?? null;
+  if (!wanted) return -1;
+  return tracks.findIndex((t) => normalizeTitle(t.title) === wanted);
+}
+
+export function findTrack(tracks, title) {
+  return tracks[findTrackIndex(tracks, title)] ?? null;
 }
 
 export function parseReleaseSearch(json) {
@@ -42,6 +46,7 @@ export function parseRelease(json) {
       tracks.push({
         disc: medium.position ?? 1,
         number: t.position,
+        label: t.number ?? String(t.position), // vinyl releases use A1, B2 and so on
         title: t.title,
         lengthMs: t.length ?? null,
       });

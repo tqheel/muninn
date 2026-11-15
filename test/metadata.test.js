@@ -32,8 +32,8 @@ test('flattens tracks across discs', () => {
     { position: 2, tracks: [{ position: 1, title: 'Two' }] },
   ] });
   assert.deepEqual(r.tracks, [
-    { disc: 1, number: 1, title: 'One', lengthMs: 1000 },
-    { disc: 2, number: 1, title: 'Two', lengthMs: null },
+    { disc: 1, number: 1, label: '1', title: 'One', lengthMs: 1000 },
+    { disc: 2, number: 1, label: '1', title: 'Two', lengthMs: null },
   ]);
 });
 

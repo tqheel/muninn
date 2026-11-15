@@ -10,6 +10,8 @@ export const DEFAULTS = {
   clipSeconds: 0, // 0 means use the platform profile
   anthropicKey: '',
   tmdbKey: '',
+  mode: 'album', // 'album' follows the album in order, 'shuffle' identifies every track
+  vinyl: false,
 };
 
 export function loadSettings(storage = globalThis.localStorage) {

@@ -17,13 +17,13 @@ let settings = loadSettings();
 const demo = new URLSearchParams(location.search).has('demo') && profile.devTools;
 const clipSeconds = () => settings.clipSeconds || profile.clipSeconds;
 
-const tracker = new Tracker({ silenceThreshold: profile.silenceThreshold });
+const tracker = new Tracker({ silenceThreshold: profile.silenceThreshold, mode: settings.mode, vinyl: settings.vinyl });
 const albumCache = new Map();
 let endpoint = AUDD_URL;
 let busy = false;
 let view = 'idle';
 let watchUntil = 0;
-let demoIndex = 0;
+let epoch = 0; // bumped on manual refresh so an in-flight answer for the old disc is dropped
 
 // ---------- display ----------
 
@@ -55,7 +55,7 @@ function renderNow(match, extras) {
   const current = normalizeTitle(match.title);
   for (const t of extras?.tracks ?? []) {
     const li = document.createElement('li');
-    li.textContent = `${t.number}. ${t.title}`;
+    li.textContent = `${t.label ?? t.number}. ${t.title}`;
     if (normalizeTitle(t.title) === current) li.className = 'current';
     list.append(li);
   }
@@ -139,27 +139,29 @@ async function fillDevices() {
 
 async function attempt() {
   busy = true;
+  const myEpoch = epoch;
   try {
     tracker.beginAttempt(Date.now());
+    const refresh = tracker.attemptRefresh;
     setStatus('Listening…');
     let result;
     let clip = clipSeconds();
     if (demo) {
       await sleep(800);
-      result = demoMatch(demoIndex);
+      result = demoMatch(tracker.current ? tracker.index + 1 : 0);
       clip = 0;
     } else {
       const samples = await collect(clip);
       setStatus('Identifying…');
       result = await recognize({ wav: encodeWav(samples, ctx.sampleRate), token: settings.token, endpoint });
     }
+    if (myEpoch !== epoch) return; // the disc was changed while this clip was in flight
     const key = `${result.artist}|${result.album}`;
     const outcome = tracker.applyResult(result, Date.now(), clip, albumCache.get(key)?.tracks);
     if (outcome === 'match') {
-      demoIndex += 1;
       setStatus('');
       renderNow(result, albumCache.get(key));
-      if (!albumCache.has(key)) await loadExtras(result, key);
+      if (!albumCache.has(key) || refresh) await loadExtras(result, key);
     } else if (outcome === 'nomatch') {
       setStatus('Could not identify this yet. Will try again.');
     } else {
@@ -175,6 +177,8 @@ async function attempt() {
 
 async function loadExtras(match, key) {
   const extras = demo ? { ...DEMO_ALBUM, tracks: DEMO_ALBUM.tracks.map((t) => ({ ...t, lengthMs: t.lengthMs / 30 })) } : await lookupEverything(match);
+  const old = albumCache.get(key);
+  if (old && !extras.tracks.length) extras.tracks = old.tracks; // keep what we had if the refresh found nothing
   albumCache.set(key, extras);
   tracker.setTracks(extras.tracks);
   if (tracker.current === match) renderNow(match, extras);
@@ -186,9 +190,16 @@ async function tick() {
   const action = tracker.update(now);
   if (action === 'idle') {
     if (view !== 'idle' && !(view === 'watch' && now < watchUntil)) setView('idle');
-    setStatus('');
+    $('idle-text').textContent = tracker.forceNow ? 'Listening for the next record or disc' : 'Waiting for music';
+    if (!busy) setStatus('');
+  } else if (action === 'advance') {
+    const current = tracker.advance(now);
+    renderNow(current, albumCache.get(`${current.artist}|${current.album}`));
+    setStatus('Next track assumed from the album order');
   } else if (action === 'recognize' && !busy) {
     await attempt();
+  } else if (tracker.waitingForFlip(now) && !busy) {
+    setStatus('Waiting for the record to be flipped');
   }
   renderProgress(now);
 }
@@ -232,6 +243,33 @@ async function detectEndpoint() {
   return AUDD_URL;
 }
 
+function refreshControls() {
+  $('mode-btn').textContent = tracker.mode === 'shuffle' ? 'Shuffle mode' : 'Album mode';
+  $('vinyl-btn').setAttribute('aria-pressed', String(tracker.vinyl));
+}
+
+function toggleMode() {
+  tracker.mode = tracker.mode === 'album' ? 'shuffle' : 'album';
+  settings = { ...settings, mode: tracker.mode };
+  saveSettings(settings);
+  refreshControls();
+}
+
+function toggleVinyl() {
+  tracker.vinyl = !tracker.vinyl;
+  settings = { ...settings, vinyl: tracker.vinyl };
+  saveSettings(settings);
+  refreshControls();
+}
+
+function manualRefresh() {
+  epoch += 1;
+  tracker.requestRefresh();
+  setView('idle');
+  $('idle-text').textContent = 'Listening for the next record or disc';
+  setStatus('');
+}
+
 function refreshWatchButton() {
   $('watch-btn').hidden = !settings.anthropicKey;
 }
@@ -253,6 +291,7 @@ async function start() {
   if (profile.fullscreen) document.documentElement.requestFullscreen?.().catch(() => {});
   await keepAwake();
   refreshWatchButton();
+  refreshControls();
   setView('idle');
   setInterval(tick, 500);
   if (!settings.token && !demo) $('settings').showModal();
@@ -290,6 +329,9 @@ $('start-btn').addEventListener('click', start);
 $('start-settings-btn').addEventListener('click', openSettings);
 $('settings-btn').addEventListener('click', openSettings);
 $('watch-btn').addEventListener('click', watchNow);
+$('refresh-btn').addEventListener('click', manualRefresh);
+$('vinyl-btn').addEventListener('click', toggleVinyl);
+$('mode-btn').addEventListener('click', toggleMode);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (!wakeLock || wakeLock.released)) keepAwake(); });
 
 let cursorTimer;
