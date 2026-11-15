@@ -2,6 +2,7 @@ import { currentPlatform, detectFeatures, getProfile } from './platform.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { rms, concat, encodeWav } from './wav.js';
 import { createRecognizer, isConfigured } from './providers.js';
+import { ACR_HOSTS, AUDD_ENDPOINTS, CUSTOM, selectionFor, valueFor } from './endpoints.js';
 import { lookupEverything, lookupReleaseCandidates, searchReleases, normalizeTitle } from './metadata.js';
 import { artistKey, trackOnRelease, rememberChoice, formatCandidate } from './albumchoice.js';
 import { Tracker } from './tracker.js';
@@ -409,11 +410,31 @@ function showProviderFields() {
   $('acr-fields').hidden = !acr;
 }
 
+function fillChoices(selectId, presets) {
+  const select = $(selectId);
+  if (select.options.length) return;
+  for (const p of presets) select.add(new Option(p.label, p.value));
+  select.add(new Option('Custom…', CUSTOM));
+}
+
+// Shows the text box only when "Custom" is chosen.
+function syncCustom(selectId, labelId) {
+  $(labelId).hidden = $(selectId).value !== CUSTOM;
+}
+
+function loadChoice(selectId, inputId, labelId, presets, saved) {
+  fillChoices(selectId, presets);
+  const { choice, custom } = selectionFor(presets, saved);
+  $(selectId).value = choice;
+  $(inputId).value = custom;
+  syncCustom(selectId, labelId);
+}
+
 function openSettings() {
   $('set-provider').value = settings.provider;
   $('set-token').value = settings.token;
-  $('set-endpoint').value = settings.endpoint;
-  $('set-acr-host').value = settings.acrHost;
+  loadChoice('set-endpoint-choice', 'set-endpoint', 'endpoint-custom-label', AUDD_ENDPOINTS, settings.endpoint);
+  loadChoice('set-acr-host-choice', 'set-acr-host', 'acr-host-custom-label', ACR_HOSTS, settings.acrHost || ACR_HOSTS[0].value);
   $('set-acr-key').value = settings.acrKey;
   $('set-acr-secret').value = settings.acrSecret;
   showProviderFields();
@@ -431,8 +452,8 @@ $('settings').addEventListener('close', async () => {
     ...settings,
     provider: $('set-provider').value,
     token: $('set-token').value.trim(),
-    endpoint: $('set-endpoint').value.trim(),
-    acrHost: $('set-acr-host').value.trim(),
+    endpoint: valueFor($('set-endpoint-choice').value, $('set-endpoint').value),
+    acrHost: valueFor($('set-acr-host-choice').value, $('set-acr-host').value),
     acrKey: $('set-acr-key').value.trim(),
     acrSecret: $('set-acr-secret').value.trim(),
     clipSeconds: Number($('set-clip').value) || 0,
@@ -447,6 +468,8 @@ $('settings').addEventListener('close', async () => {
 });
 
 $('set-provider').addEventListener('change', showProviderFields);
+$('set-endpoint-choice').addEventListener('change', () => syncCustom('set-endpoint-choice', 'endpoint-custom-label'));
+$('set-acr-host-choice').addEventListener('change', () => syncCustom('set-acr-host-choice', 'acr-host-custom-label'));
 $('start-btn').addEventListener('click', start);
 $('start-settings-btn').addEventListener('click', openSettings);
 $('settings-btn').addEventListener('click', openSettings);

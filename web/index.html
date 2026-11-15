@@ -67,12 +67,18 @@
         <label>AudD token
           <input id="set-token" type="password" autocomplete="off">
         </label>
-        <label>Endpoint (blank = automatic)
+        <label>Endpoint
+          <select id="set-endpoint-choice"></select>
+        </label>
+        <label id="endpoint-custom-label" hidden>Custom endpoint
           <input id="set-endpoint" type="text" placeholder="https://api.audd.io/">
         </label>
       </div>
       <div id="acr-fields" hidden>
-        <label>Host (from your ACRCloud project)
+        <label>Region (shown on your ACRCloud project)
+          <select id="set-acr-host-choice"></select>
+        </label>
+        <label id="acr-host-custom-label" hidden>Custom host
           <input id="set-acr-host" type="text" placeholder="identify-us-west-2.acrcloud.com">
         </label>
         <label>Access key
