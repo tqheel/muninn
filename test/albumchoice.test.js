@@ -35,3 +35,16 @@ test('formats a candidate for the picker', () => {
   );
   assert.equal(formatCandidate({ title: 'X', formats: [] }).detail, '');
 });
+
+import { stickyKey } from '../web/albumchoice.js';
+
+test('album mode stays on the album on screen when the track is on it', () => {
+  const current = { artist: 'Bruce Springsteen', album: 'Greetings', cacheKey: 'k1' };
+  const tracks = [{ title: 'Blinded by the Light' }, { title: 'Mary Queen of Arkansas' }];
+  const match = { artist: 'Bruce Springsteen', title: 'Mary Queen of Arkansas (Album Version)', album: 'Box set' };
+  assert.equal(stickyKey({ mode: 'album', current, match, tracks }), 'k1');
+  assert.equal(stickyKey({ mode: 'shuffle', current, match, tracks }), null);
+  assert.equal(stickyKey({ mode: 'album', current, match: { ...match, artist: 'Someone Else' }, tracks }), null);
+  assert.equal(stickyKey({ mode: 'album', current, match: { ...match, title: 'Born to Run' }, tracks }), null);
+  assert.equal(stickyKey({ mode: 'album', current: null, match, tracks }), null);
+});

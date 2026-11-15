@@ -27,3 +27,12 @@ export function formatCandidate(c) {
   if (c.compilation) parts.push('compilation');
   return { title: c.title, detail: parts.join(' \u00b7 ') };
 }
+
+// In album mode, a later clip of the same disc can come back from the service with a
+// different album name (a box set, say). If the track is on the album already on screen,
+// stay on it. Returns that album's cache key, or null to look the album up as usual.
+export function stickyKey({ mode, current, match, tracks }) {
+  if (mode !== 'album' || !current?.cacheKey || !tracks?.length) return null;
+  if (artistKey(current.artist) !== artistKey(match.artist)) return null;
+  return trackOnRelease(tracks, match.title) ? current.cacheKey : null;
+}

@@ -4,7 +4,7 @@ import { rms, concat, encodeWav } from './wav.js';
 import { createRecognizer, isConfigured } from './providers.js';
 import { ACR_HOSTS, AUDD_ENDPOINTS, CUSTOM, selectionFor, valueFor } from './endpoints.js';
 import { lookupEverything, lookupReleaseCandidates, searchReleases, normalizeTitle } from './metadata.js';
-import { artistKey, trackOnRelease, rememberChoice, formatCandidate } from './albumchoice.js';
+import { artistKey, trackOnRelease, rememberChoice, formatCandidate, stickyKey } from './albumchoice.js';
 import { Tracker } from './tracker.js';
 import { captureFrame, identifyFrame, lookupTitle } from './watch.js';
 import { DEMO_ALBUM, DEMO_CANDIDATES, demoMatch, demoRelease } from './demo.js';
@@ -162,9 +162,13 @@ async function attempt() {
     let key = `${result.artist}|${result.album}`;
     if (result.status === 'match') {
       const lockKey = await applyChoice(result);
+      const stay = lockKey ? null : stickyKey({ mode: tracker.mode, current: tracker.current, match: result, tracks: albumCache.get(tracker.current?.cacheKey)?.tracks });
       if (lockKey) {
         key = lockKey;
         result = { ...result, album: locked.title };
+      } else if (stay) {
+        key = stay;
+        result = { ...result, album: tracker.current.album };
       }
       result.cacheKey = key;
     }
