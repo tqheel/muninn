@@ -246,6 +246,7 @@ async function detectEndpoint() {
 function refreshControls() {
   $('mode-btn').textContent = tracker.mode === 'shuffle' ? 'Shuffle mode' : 'Album mode';
   $('vinyl-btn').setAttribute('aria-pressed', String(tracker.vinyl));
+  $('mode-badge').textContent = `${tracker.mode === 'shuffle' ? 'Shuffle' : 'Album'}${tracker.vinyl ? ' \u00b7 Vinyl' : ''}`;
 }
 
 function toggleMode() {
