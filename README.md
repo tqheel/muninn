@@ -60,4 +60,4 @@ Not set up yet.
 
 ## License
 
-Not chosen yet.
+MIT. See [LICENSE](LICENSE).
