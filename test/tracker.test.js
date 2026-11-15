@@ -241,3 +241,12 @@ test('manual refresh clears the album and asks as soon as there is sound', () =>
   t.applyResult({ status: 'nomatch' }, 17000, 12);
   assert.equal(t.refreshPending, true); // a failed attempt does not lose the refresh
 });
+
+test('a track missing from the chosen release has no known length', () => {
+  const t = onAlbum();
+  assert.equal(t.lengthMs, 100000);
+  t.setTracks([{ title: 'Different', lengthMs: 5000 }]);
+  assert.equal(t.index, -1);
+  assert.equal(t.lengthMs, null);
+  assert.equal(t.canAdvance(), false);
+});

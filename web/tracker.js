@@ -155,7 +155,8 @@ export class Tracker {
     if (!this.current) return;
     this.tracks = tracks;
     this.index = findTrackIndex(tracks, this.current.title);
-    this.lengthMs = tracks[this.index]?.lengthMs ?? this.lengthMs;
+    // A track found without a length keeps what we had. A track missing from the list has no known length.
+    this.lengthMs = tracks[this.index]?.lengthMs ?? (this.index >= 0 ? this.lengthMs : null);
   }
 
   elapsedSeconds(now) {

@@ -77,15 +77,75 @@ async function getJson(url, fetchImpl, retryMs = 2500) {
 
 const quote = (s) => `"${s.replace(/(["\\])/g, '\\$1')}"`;
 
+export async function fetchRelease(id, fetchImpl = fetch) {
+  await throttle();
+  return parseRelease(await getJson(`${MB}/release/${id}?inc=recordings&fmt=json`, fetchImpl));
+}
+
 export async function lookupAlbum({ artist, album }, fetchImpl = fetch) {
   if (!album) return null;
   await throttle();
   const query = `release:${quote(album)} AND artist:${quote(artist)}`;
   const search = await getJson(`${MB}/release/?query=${encodeURIComponent(query)}&fmt=json&limit=10`, fetchImpl);
   const id = parseReleaseSearch(search);
-  if (!id) return null;
+  return id ? fetchRelease(id, fetchImpl) : null;
+}
+
+// One release as the picker shows it. Works for releases found through a recording
+// search and for releases found directly.
+export function toCandidate(r) {
+  const media = r.media ?? [];
+  const formats = [...new Set(media.map((m) => m.format).filter(Boolean))];
+  const counted = media.reduce((n, m) => n + (m['track-count'] ?? m.track?.length ?? 0), 0);
+  return {
+    id: r.id,
+    title: r.title ?? '',
+    year: (r.date ?? '').slice(0, 4) || null,
+    status: r.status ?? null,
+    formats,
+    discs: media.length || null,
+    trackCount: counted || r['track-count'] || null,
+    compilation: Boolean(r['release-group']?.['secondary-types']?.includes('Compilation')),
+  };
+}
+
+function rankCandidates(candidates) {
+  const official = (c) => (c.status === 'Official' ? 0 : 1);
+  return candidates
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => official(a.c) - official(b.c) || a.i - b.i)
+    .map(({ c }) => c);
+}
+
+export function parseRecordingSearch(json) {
+  const seen = new Set();
+  const out = [];
+  for (const rec of json?.recordings ?? []) {
+    for (const r of rec.releases ?? []) {
+      if (!r.id || seen.has(r.id)) continue;
+      seen.add(r.id);
+      out.push(toCandidate(r));
+    }
+  }
+  return rankCandidates(out).slice(0, 30);
+}
+
+export function parseReleaseCandidates(json) {
+  return rankCandidates((json?.releases ?? []).map(toCandidate)).slice(0, 30);
+}
+
+// Every release that contains this recording, so the listener can pick the one in their hands.
+export async function lookupReleaseCandidates({ artist, title }, fetchImpl = fetch) {
   await throttle();
-  return parseRelease(await getJson(`${MB}/release/${id}?inc=recordings&fmt=json`, fetchImpl));
+  const query = `recording:${quote(title)} AND artist:${quote(artist)}`;
+  return parseRecordingSearch(await getJson(`${MB}/recording/?query=${encodeURIComponent(query)}&fmt=json&limit=25`, fetchImpl));
+}
+
+// For when the right release is not in that list: search by album name instead.
+export async function searchReleases({ artist, album }, fetchImpl = fetch) {
+  await throttle();
+  const query = album ? `release:${quote(album)} AND artist:${quote(artist)}` : `artist:${quote(artist)}`;
+  return parseReleaseCandidates(await getJson(`${MB}/release/?query=${encodeURIComponent(query)}&fmt=json&limit=25`, fetchImpl));
 }
 
 export function coverArtUrl(mbid) {
@@ -110,14 +170,16 @@ export async function lookupArtist(artist, fetchImpl = fetch) {
   return null;
 }
 
-export async function lookupEverything(match, fetchImpl = fetch) {
+// releaseId is set when the listener picked a specific release.
+export async function lookupEverything(match, fetchImpl = fetch, { releaseId = null } = {}) {
   const [album, artist] = await Promise.all([
-    lookupAlbum(match, fetchImpl).catch(() => null),
+    (releaseId ? fetchRelease(releaseId, fetchImpl) : lookupAlbum(match, fetchImpl)).catch(() => null),
     lookupArtist(match.artist, fetchImpl),
   ]);
   return {
     tracks: album?.tracks ?? [],
     artUrl: coverArtUrl(album?.mbid) ?? match.artUrl ?? null,
     bio: artist,
+    ...(releaseId ? { releaseId, albumTitle: album?.title || null } : {}),
   };
 }

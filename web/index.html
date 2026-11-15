@@ -15,6 +15,7 @@
         <h1 id="track"></h1>
         <p id="album" class="album"></p>
         <p id="artist" class="artist"></p>
+        <button id="wrong-album-btn" type="button" class="quiet small">Wrong album?</button>
         <div class="progress" aria-hidden="true"><div id="bar"></div></div>
         <ol id="tracklist" class="tracklist"></ol>
         <p id="bio" class="bio"></p>
@@ -68,6 +69,7 @@
       <label>Recognition endpoint (blank = automatic)
         <input id="set-endpoint" type="text" placeholder="https://api.audd.io/">
       </label>
+      <p class="note"><button type="button" id="forget-choices" class="quiet small">Forget my album choices</button></p>
       <details>
         <summary>What am I watching (experimental)</summary>
         <label>Anthropic API key
@@ -82,6 +84,20 @@
         <button value="cancel" class="quiet">Cancel</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="picker">
+    <h2>Which release is this?</h2>
+    <p id="picker-note" class="note"></p>
+    <ul id="picker-list" class="picker-list"></ul>
+    <form id="picker-search" class="row">
+      <input id="picker-query" type="text" placeholder="Search by album name" autocomplete="off">
+      <button type="submit">Search</button>
+    </form>
+    <div class="row">
+      <button type="button" id="picker-auto" class="quiet">Go back to automatic</button>
+      <button type="button" id="picker-cancel" class="quiet">Cancel</button>
+    </div>
   </dialog>
 
   <script type="module" src="app.js"></script>

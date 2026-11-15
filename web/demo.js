@@ -19,6 +19,19 @@ export const DEMO_ALBUM = {
   },
 };
 
+export const DEMO_CANDIDATES = [
+  { id: 'demo-1', title: 'Kind of Blue', year: '1959', formats: ['12" Vinyl'], discs: 1, trackCount: 5, compilation: false },
+  { id: 'demo-2', title: 'Kind of Blue (Legacy Edition)', year: '2009', formats: ['CD'], discs: 2, trackCount: 8, compilation: false },
+];
+
+export function demoRelease(id) {
+  const tracks = id === 'demo-2'
+    ? [...DEMO_ALBUM.tracks, { number: 6, title: 'Flamenco Sketches (alternate take)', lengthMs: 568000 }]
+    : DEMO_ALBUM.tracks;
+  const title = DEMO_CANDIDATES.find((c) => c.id === id)?.title ?? DEMO_ALBUM.album;
+  return { tracks: tracks.map((t) => ({ ...t, lengthMs: t.lengthMs / 30 })), title };
+}
+
 export function demoMatch(index) {
   const t = DEMO_ALBUM.tracks[index % DEMO_ALBUM.tracks.length];
   return {

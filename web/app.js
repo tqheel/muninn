@@ -2,10 +2,11 @@ import { currentPlatform, detectFeatures, getProfile } from './platform.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { rms, concat, encodeWav } from './wav.js';
 import { recognize, AUDD_URL } from './recognize.js';
-import { lookupEverything, normalizeTitle } from './metadata.js';
+import { lookupEverything, lookupReleaseCandidates, searchReleases, normalizeTitle } from './metadata.js';
+import { artistKey, trackOnRelease, rememberChoice, formatCandidate } from './albumchoice.js';
 import { Tracker } from './tracker.js';
 import { captureFrame, identifyFrame, lookupTitle } from './watch.js';
-import { DEMO_ALBUM, demoMatch } from './demo.js';
+import { DEMO_ALBUM, DEMO_CANDIDATES, demoMatch, demoRelease } from './demo.js';
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -23,6 +24,7 @@ let endpoint = AUDD_URL;
 let busy = false;
 let view = 'idle';
 let watchUntil = 0;
+let locked = null; // the release the listener picked: { id, title, key }
 let epoch = 0; // bumped on manual refresh so an in-flight answer for the old disc is dropped
 
 // ---------- display ----------
@@ -43,7 +45,7 @@ function renderNow(match, extras) {
   setView('now');
   document.title = `${match.title} - ${match.artist}`;
   $('track').textContent = match.title;
-  $('album').textContent = match.album;
+  $('album').textContent = extras?.albumTitle ?? match.album;
   $('artist').textContent = match.artist;
   const art = $('art');
   const url = extras?.artUrl ?? match.artUrl;
@@ -156,7 +158,15 @@ async function attempt() {
       result = await recognize({ wav: encodeWav(samples, ctx.sampleRate), token: settings.token, endpoint });
     }
     if (myEpoch !== epoch) return; // the disc was changed while this clip was in flight
-    const key = `${result.artist}|${result.album}`;
+    let key = `${result.artist}|${result.album}`;
+    if (result.status === 'match') {
+      const lockKey = await applyChoice(result);
+      if (lockKey) {
+        key = lockKey;
+        result = { ...result, album: locked.title };
+      }
+      result.cacheKey = key;
+    }
     const outcome = tracker.applyResult(result, Date.now(), clip, albumCache.get(key)?.tracks);
     if (outcome === 'match') {
       setStatus('');
@@ -175,8 +185,31 @@ async function attempt() {
   }
 }
 
+// Keeps the listener's chosen release while the tracks still belong to it. Returns its cache key, or null.
+async function applyChoice(match) {
+  if (locked && !trackOnRelease(albumCache.get(locked.key)?.tracks ?? [], match.title)) locked = null; // a different disc
+  if (!locked && !demo) {
+    const remembered = settings.albumChoices?.[artistKey(match.artist)];
+    if (remembered) {
+      const extras = await lookupEverything(match, fetch, { releaseId: remembered.id }).catch(() => null);
+      if (extras && trackOnRelease(extras.tracks, match.title)) {
+        locked = { id: remembered.id, title: extras.albumTitle || remembered.title, key: `locked:${remembered.id}` };
+        albumCache.set(locked.key, extras);
+      }
+    }
+  }
+  return locked?.key ?? null;
+}
+
+function demoExtras(releaseId) {
+  if (!releaseId) return { ...DEMO_ALBUM, tracks: demoRelease().tracks };
+  const release = demoRelease(releaseId);
+  return { ...DEMO_ALBUM, tracks: release.tracks, releaseId, albumTitle: release.title };
+}
+
 async function loadExtras(match, key) {
-  const extras = demo ? { ...DEMO_ALBUM, tracks: DEMO_ALBUM.tracks.map((t) => ({ ...t, lengthMs: t.lengthMs / 30 })) } : await lookupEverything(match);
+  const releaseId = key.startsWith('locked:') ? key.slice('locked:'.length) : null;
+  const extras = demo ? demoExtras(releaseId) : await lookupEverything(match, fetch, { releaseId });
   const old = albumCache.get(key);
   if (old && !extras.tracks.length) extras.tracks = old.tracks; // keep what we had if the refresh found nothing
   albumCache.set(key, extras);
@@ -194,7 +227,7 @@ async function tick() {
     if (!busy) setStatus('');
   } else if (action === 'advance') {
     const current = tracker.advance(now);
-    renderNow(current, albumCache.get(`${current.artist}|${current.album}`));
+    renderNow(current, albumCache.get(current.cacheKey));
     setStatus('Next track assumed from the album order');
   } else if (action === 'recognize' && !busy) {
     await attempt();
@@ -265,10 +298,83 @@ function toggleVinyl() {
 
 function manualRefresh() {
   epoch += 1;
+  locked = null;
   tracker.requestRefresh();
   setView('idle');
   $('idle-text').textContent = 'Listening for the next record or disc';
   setStatus('');
+}
+
+// ---------- wrong album picker ----------
+
+let pickerFor = null;
+
+function showCandidates(list, emptyText) {
+  $('picker-note').textContent = list.length ? 'Pick the one you are listening to.' : emptyText;
+  const ul = $('picker-list');
+  ul.replaceChildren();
+  for (const c of list) {
+    const { title, detail } = formatCandidate(c);
+    const li = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    const name = document.createElement('span');
+    name.textContent = title;
+    const info = document.createElement('span');
+    info.className = 'detail';
+    info.textContent = detail;
+    button.append(name, info);
+    button.addEventListener('click', () => chooseRelease(c));
+    li.append(button);
+    ul.append(li);
+  }
+}
+
+async function openPicker() {
+  const match = tracker.current;
+  if (!match) return;
+  pickerFor = match;
+  $('picker-query').value = '';
+  $('picker-list').replaceChildren();
+  $('picker-note').textContent = 'Looking for releases\u2026';
+  $('picker').showModal();
+  try {
+    const list = demo ? DEMO_CANDIDATES : await lookupReleaseCandidates({ artist: match.artist, title: match.title });
+    showCandidates(list, 'No releases found for this recording. Try searching by album name.');
+  } catch (err) {
+    $('picker-note').textContent = `Could not reach MusicBrainz (${err.message}).`;
+  }
+}
+
+async function chooseRelease(candidate) {
+  $('picker').close();
+  const match = tracker.current;
+  if (!match) return;
+  setStatus('Loading that release\u2026');
+  try {
+    const extras = demo ? demoExtras(candidate.id) : await lookupEverything(match, fetch, { releaseId: candidate.id });
+    if (!extras.tracks.length) { setStatus('Could not load the track list for that release.'); return; }
+    extras.albumTitle ||= candidate.title;
+    const key = `locked:${candidate.id}`;
+    locked = { id: candidate.id, title: extras.albumTitle, key };
+    albumCache.set(key, extras);
+    settings = { ...settings, albumChoices: rememberChoice(settings.albumChoices, match.artist, { id: candidate.id, title: extras.albumTitle }) };
+    saveSettings(settings);
+    Object.assign(match, { album: extras.albumTitle, artUrl: extras.artUrl ?? match.artUrl, cacheKey: key });
+    tracker.setTracks(extras.tracks);
+    renderNow(match, extras);
+    setStatus(tracker.index < 0 ? 'That release does not list this track, so album mode will check with clips.' : '');
+  } catch (err) {
+    setStatus(`Could not load that release: ${err.message}`);
+  }
+}
+
+function forgetChoice(artist) {
+  const choices = { ...settings.albumChoices };
+  if (artist) delete choices[artistKey(artist)];
+  settings = { ...settings, albumChoices: artist ? choices : {} };
+  saveSettings(settings);
+  locked = null;
 }
 
 function refreshWatchButton() {
@@ -331,6 +437,31 @@ $('start-settings-btn').addEventListener('click', openSettings);
 $('settings-btn').addEventListener('click', openSettings);
 $('watch-btn').addEventListener('click', watchNow);
 $('refresh-btn').addEventListener('click', manualRefresh);
+$('wrong-album-btn').addEventListener('click', openPicker);
+$('picker-cancel').addEventListener('click', () => $('picker').close());
+$('picker-auto').addEventListener('click', () => {
+  $('picker').close();
+  forgetChoice(pickerFor?.artist);
+  manualRefresh();
+});
+$('picker-search').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const query = $('picker-query').value.trim();
+  if (!query || !pickerFor) return;
+  $('picker-note').textContent = 'Searching\u2026';
+  try {
+    const list = demo
+      ? DEMO_CANDIDATES.filter((c) => c.title.toLowerCase().includes(query.toLowerCase()))
+      : await searchReleases({ artist: pickerFor.artist, album: query });
+    showCandidates(list, 'Nothing found for that name.');
+  } catch (err) {
+    $('picker-note').textContent = `Could not reach MusicBrainz (${err.message}).`;
+  }
+});
+$('forget-choices').addEventListener('click', () => {
+  forgetChoice();
+  $('forget-choices').textContent = 'Forgotten';
+});
 $('vinyl-btn').addEventListener('click', toggleVinyl);
 $('mode-btn').addEventListener('click', toggleMode);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (!wakeLock || wakeLock.released)) keepAwake(); });

@@ -12,6 +12,7 @@ export const DEFAULTS = {
   tmdbKey: '',
   mode: 'album', // 'album' follows the album in order, 'shuffle' identifies every track
   vinyl: false,
+  albumChoices: {}, // artist -> the release the listener picked
 };
 
 export function loadSettings(storage = globalThis.localStorage) {

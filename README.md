@@ -36,6 +36,7 @@ The same idea for the screen: if I am watching a movie or a show, muninn tells m
 - Once it knows the album, it pulls the track list and track lengths from MusicBrainz and uses them to predict track changes, so it does not need to ask the service constantly. In **album mode**, the default, it moves to the next track in order on its own and checks with a real clip every third track (every second on vinyl). **Shuffle mode** identifies every track instead.
 - **Vinyl** is a toggle. When it is on and the sound stops for a while, muninn keeps the album on screen and waits for me to flip the record, then listens again and fetches the track list fresh.
 - **Refresh** forgets the current album and listens again, for when I change discs.
+- **Wrong album?** The service names the song correctly but often the wrong release, such as a compilation instead of the set I am holding. A quiet button next to the album title lists every release that contains the recording, and I pick the right one. It then follows that release's track order, and remembers the choice for that artist on this device.
 - Album art from the Cover Art Archive. Artist notes from Wikipedia.
 - It detects the platform it is running on and adapts: which audio input to use, how to keep the screen awake, how to lay out the display, and which developer conveniences to turn on.
 
