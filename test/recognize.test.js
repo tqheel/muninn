@@ -38,7 +38,7 @@ test('recognize sends the token and audio, and reports failures', async () => {
   assert.equal(ok.status, 'match');
   assert.equal(sent.url, 'http://x/');
   assert.equal(sent.init.body.get('api_token'), 'tok');
-  assert.equal(sent.init.body.get('audio').size, 3);
+  assert.equal(sent.init.body.get('file').size, 3);
 
   assert.equal((await recognize({ wav: new Uint8Array(), token: '' })).status, 'error');
   const down = await recognize({ wav: new Uint8Array(), token: 't', fetchImpl: async () => { throw new Error('offline'); } });

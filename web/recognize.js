@@ -37,7 +37,7 @@ export async function recognize({ wav, token, endpoint = AUDD_URL, fetchImpl = f
   const form = new FormData();
   form.append('api_token', token);
   form.append('return', 'apple_music,spotify');
-  form.append('audio', new Blob([wav], { type: 'audio/wav' }), 'clip.wav');
+  form.append('file', new Blob([wav], { type: 'audio/wav' }), 'clip.wav');
   let response;
   try {
     response = await fetchImpl(endpoint, { method: 'POST', body: form });
