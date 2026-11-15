@@ -1,0 +1,10 @@
+{
+  "name": "muninn",
+  "version": "0.0.0",
+  "description": "Listens to the music (and later the movie) playing in the room and shows what it is.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "muninn": "./bin/muninn.js"
+  }
+}
