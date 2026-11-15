@@ -37,6 +37,7 @@ The same idea for the screen: if I am watching a movie or a show, muninn tells m
 - **Vinyl** is a toggle. When it is on and the sound stops for a while, muninn keeps the album on screen and waits for me to flip the record, then listens again and fetches the track list fresh.
 - **Refresh** forgets the current album and listens again, for when I change discs.
 - **Wrong album?** The service names the song correctly but often the wrong release, such as a compilation instead of the set I am holding. A quiet button next to the album title lists every release that contains the recording, and I pick the right one. It then follows that release's track order, and remembers the choice for that artist on this device.
+- The recognition service is swappable. AudD and ACRCloud are built in, chosen in Settings, and adding another means writing one small client that returns the same result shape (see `web/providers.js`). I added this because AudD bills a flat monthly fee whether or not I listen.
 - Album art from the Cover Art Archive. Artist notes from Wikipedia.
 - It detects the platform it is running on and adapts: which audio input to use, how to keep the screen awake, how to lay out the display, and which developer conveniences to turn on.
 
@@ -70,7 +71,7 @@ You need Node 20 or newer and nothing else. There is nothing to install.
 node bin/muninn.js serve --open
 ```
 
-That serves the display on `http://localhost:8080` and relays recognition requests, so the browser never has to talk to the recognition service directly. Click Start, allow the microphone, and enter an [AudD](https://audd.io) token in Settings. The token stays in that browser.
+That serves the display on `http://localhost:8080` and relays recognition requests, so the browser never has to talk to the recognition service directly. Click Start, allow the microphone, and pick a recognition service in Settings: an [AudD](https://audd.io) token, or an [ACRCloud](https://www.acrcloud.com) host, access key and access secret. Credentials stay in that browser. ACRCloud signs each request on the device, so the secret itself is never sent anywhere.
 
 On the Mac, `?demo=1` on the address runs the whole display with canned results and no microphone, which is how I develop the layout.
 

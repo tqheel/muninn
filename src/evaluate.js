@@ -4,7 +4,6 @@
 
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { recognize } from '../web/recognize.js';
 import { normalizeTitle } from '../web/metadata.js';
 
 const AUDIO = new Set(['.wav', '.mp3', '.m4a', '.flac', '.ogg']);
@@ -25,14 +24,15 @@ export function judge(expected, result) {
   return sameTitle && sameArtist ? 'hit' : 'wrong';
 }
 
-export async function evaluate({ dir, token, endpoint, log = console.log, recognizeImpl = recognize }) {
+// recognizer is any function from a WAV/audio file's bytes to a result (see web/providers.js).
+export async function evaluate({ dir, recognizer, log = console.log }) {
   const files = (await readdir(dir)).filter((f) => AUDIO.has(path.extname(f).toLowerCase())).sort();
   const tally = { hit: 0, wrong: 0, miss: 0, error: 0, match: 0 };
   let totalMs = 0;
   for (const file of files) {
     const wav = await readFile(path.join(dir, file));
     const started = Date.now();
-    const result = await recognizeImpl({ wav, token, endpoint });
+    const result = await recognizer(wav);
     const ms = Date.now() - started;
     totalMs += ms;
     const verdict = judge(expectedFromName(file), result);

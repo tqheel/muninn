@@ -1,6 +1,6 @@
-// Serves the web app and relays recognition requests to AudD, so the browser
-// does not depend on cross-origin access to the service. The relay forwards the
-// request body untouched and keeps nothing.
+// Serves the web app and relays recognition requests to AudD or ACRCloud, so the
+// browser does not depend on cross-origin access to the service. The relay forwards
+// the request body untouched and keeps nothing. It only forwards to those two services.
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -26,25 +26,39 @@ export function resolveStatic(urlPath, root = WEB_ROOT) {
   return target === root || target.startsWith(root + path.sep) ? target : null;
 }
 
-export function createServer({ upstream = 'https://api.audd.io/', fetchImpl = fetch, root = WEB_ROOT } = {}) {
+const ACRCLOUD_HOST = /^identify-[a-z0-9-]+\.acrcloud\.(com|cn)$/;
+
+export function acrcloudUrl(host) {
+  return ACRCLOUD_HOST.test(host ?? '') ? `https://${host}/v1/identify` : null;
+}
+
+async function relay(req, res, target, fetchImpl) {
+  if (req.method !== 'POST') return void res.writeHead(405).end();
+  if (Number(req.headers['content-length'] ?? 0) > MAX_BODY) return void res.writeHead(413).end();
+  const upstreamRes = await fetchImpl(target, {
+    method: 'POST',
+    headers: { 'content-type': req.headers['content-type'] ?? 'application/octet-stream' },
+    body: Readable.toWeb(req),
+    duplex: 'half',
+  });
+  res.writeHead(upstreamRes.status, { 'content-type': upstreamRes.headers.get('content-type') ?? 'application/json' });
+  res.end(Buffer.from(await upstreamRes.arrayBuffer()));
+}
+
+export function createServer({ upstream = 'https://api.audd.io/', acrcloudBase = null, fetchImpl = fetch, root = WEB_ROOT } = {}) {
   return http.createServer(async (req, res) => {
     try {
-      if (req.url === '/api/health') {
+      const url = new URL(req.url, 'http://localhost');
+      if (url.pathname === '/api/health') {
         res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
         return;
       }
-      if (req.url === '/api/recognize') {
-        if (req.method !== 'POST') return void res.writeHead(405).end();
-        if (Number(req.headers['content-length'] ?? 0) > MAX_BODY) return void res.writeHead(413).end();
-        const upstreamRes = await fetchImpl(upstream, {
-          method: 'POST',
-          headers: { 'content-type': req.headers['content-type'] ?? 'application/octet-stream' },
-          body: Readable.toWeb(req),
-          duplex: 'half',
-        });
-        res.writeHead(upstreamRes.status, { 'content-type': upstreamRes.headers.get('content-type') ?? 'application/json' });
-        res.end(Buffer.from(await upstreamRes.arrayBuffer()));
-        return;
+      if (url.pathname === '/api/recognize') return await relay(req, res, upstream, fetchImpl);
+      if (url.pathname === '/api/acrcloud') {
+        const host = url.searchParams.get('host');
+        const target = acrcloudBase && acrcloudUrl(host) ? `${acrcloudBase}/${host}` : acrcloudUrl(host);
+        if (!target) return void res.writeHead(400, { 'content-type': 'text/plain' }).end('Not an ACRCloud host');
+        return await relay(req, res, target, fetchImpl);
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') return void res.writeHead(405).end();
       const file = resolveStatic(req.url, root);

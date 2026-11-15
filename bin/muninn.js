@@ -12,8 +12,10 @@ Usage:
   muninn eval <folder>                  Run the recognition hit-rate check on a folder of clips
   muninn --help | --version
 
-The token for \`eval\` comes from RECOGNITION_API_TOKEN (environment or .env).
-The display keeps its own token in the browser. Nothing is written to disk.
+\`eval\` reads its credentials from the environment or .env:
+  RECOGNITION_PROVIDER=audd (default) with RECOGNITION_API_TOKEN, or
+  RECOGNITION_PROVIDER=acrcloud with ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, ACRCLOUD_ACCESS_SECRET.
+The display keeps its own credentials in the browser. Nothing is written to disk.
 `;
 
 function loadDotEnv() {
@@ -48,9 +50,12 @@ if (command === '--help' || command === '-h' || command === 'help') {
   const dir = args[0];
   loadDotEnv();
   if (!dir) { console.error('Usage: muninn eval <folder>'); process.exit(2); }
-  if (!process.env.RECOGNITION_API_TOKEN) { console.error('Set RECOGNITION_API_TOKEN (environment or .env).'); process.exit(2); }
+  const env = process.env;
+  const settings = { provider: env.RECOGNITION_PROVIDER, token: env.RECOGNITION_API_TOKEN, acrHost: env.ACRCLOUD_HOST, acrKey: env.ACRCLOUD_ACCESS_KEY, acrSecret: env.ACRCLOUD_ACCESS_SECRET };
+  const { createRecognizer, isConfigured } = await import('../web/providers.js');
+  if (!isConfigured(settings)) { console.error('Credentials are missing for the chosen provider. See muninn --help.'); process.exit(2); }
   const { evaluate } = await import('../src/evaluate.js');
-  await evaluate({ dir, token: process.env.RECOGNITION_API_TOKEN });
+  await evaluate({ dir, recognizer: createRecognizer(settings) });
 } else {
   console.error(`Unknown command: ${command}\n\n${HELP}`);
   process.exit(2);

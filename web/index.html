@@ -57,17 +57,36 @@
     <form method="dialog" id="settings-form">
       <h2>Settings</h2>
       <p class="note">Stored on this device only.</p>
-      <label>Recognition token (AudD)
-        <input id="set-token" type="password" autocomplete="off">
+      <label>Recognition service
+        <select id="set-provider">
+          <option value="audd">AudD</option>
+          <option value="acrcloud">ACRCloud</option>
+        </select>
       </label>
+      <div id="audd-fields">
+        <label>AudD token
+          <input id="set-token" type="password" autocomplete="off">
+        </label>
+        <label>Endpoint (blank = automatic)
+          <input id="set-endpoint" type="text" placeholder="https://api.audd.io/">
+        </label>
+      </div>
+      <div id="acr-fields" hidden>
+        <label>Host (from your ACRCloud project)
+          <input id="set-acr-host" type="text" placeholder="identify-us-west-2.acrcloud.com">
+        </label>
+        <label>Access key
+          <input id="set-acr-key" type="password" autocomplete="off">
+        </label>
+        <label>Access secret
+          <input id="set-acr-secret" type="password" autocomplete="off">
+        </label>
+      </div>
       <label>Microphone
         <select id="set-device"><option value="">Default</option></select>
       </label>
       <label>Clip length in seconds (0 = platform default)
         <input id="set-clip" type="number" min="0" max="30">
-      </label>
-      <label>Recognition endpoint (blank = automatic)
-        <input id="set-endpoint" type="text" placeholder="https://api.audd.io/">
       </label>
       <p class="note"><button type="button" id="forget-choices" class="quiet small">Forget my album choices</button></p>
       <details>

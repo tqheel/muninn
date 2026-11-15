@@ -27,8 +27,8 @@ test('evaluates a folder and reports the hit rate', async () => {
   const answers = { 'A - One.wav': { status: 'match', artist: 'A', title: 'One' }, 'B - Two.wav': { status: 'nomatch' } };
   let i = 0;
   const summary = await evaluate({
-    dir, token: 't', log: () => {},
-    recognizeImpl: async () => answers[['A - One.wav', 'B - Two.wav'][i++]],
+    dir, log: () => {},
+    recognizer: async () => answers[['A - One.wav', 'B - Two.wav'][i++]],
   });
   assert.equal(summary.clips, 2);
   assert.equal(summary.hit, 1);

@@ -4,7 +4,11 @@
 const KEY = 'muninn.settings';
 
 export const DEFAULTS = {
-  token: '',
+  provider: 'audd', // which recognition service to use
+  token: '', // AudD
+  acrHost: '', // ACRCloud: identify-<region>.acrcloud.com
+  acrKey: '',
+  acrSecret: '',
   endpoint: '',
   deviceId: '',
   clipSeconds: 0, // 0 means use the platform profile

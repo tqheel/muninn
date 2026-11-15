@@ -50,3 +50,38 @@ test('relays recognition requests untouched', async () => {
   assert.match(seen.type, /multipart\/form-data/);
   assert.match(seen.body, /secret/);
 });
+
+import { acrcloudUrl } from '../src/server.js';
+
+test('only ACRCloud identify hosts are accepted by the relay', () => {
+  assert.equal(acrcloudUrl('identify-us-west-2.acrcloud.com'), 'https://identify-us-west-2.acrcloud.com/v1/identify');
+  assert.equal(acrcloudUrl('identify-cn-north-1.acrcloud.cn'), 'https://identify-cn-north-1.acrcloud.cn/v1/identify');
+  for (const bad of [null, '', 'example.com', 'identify-x.acrcloud.com.evil.com', 'evil.com/identify-x.acrcloud.com', 'localhost:3000', 'identify-x.acrcloud.com:8080']) {
+    assert.equal(acrcloudUrl(bad), null, bad);
+  }
+});
+
+test('relays ACRCloud requests and refuses other hosts', async () => {
+  let seenUrl;
+  const fakeFetch = async (url, init) => {
+    seenUrl = url;
+    for await (const _ of init.body) { /* drain */ }
+    return new Response('{"status":{"code":1001}}', { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const server = createServer({ fetchImpl: fakeFetch });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const form = new FormData();
+    form.append('access_key', 'k');
+    const ok = await fetch(`${base}/api/acrcloud?host=identify-us-west-2.acrcloud.com`, { method: 'POST', body: form });
+    assert.equal(ok.status, 200);
+    assert.equal(seenUrl, 'https://identify-us-west-2.acrcloud.com/v1/identify');
+    seenUrl = null;
+    const bad = await fetch(`${base}/api/acrcloud?host=example.com`, { method: 'POST', body: form });
+    assert.equal(bad.status, 400);
+    assert.equal(seenUrl, null);
+  } finally {
+    server.close();
+  }
+});

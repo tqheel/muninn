@@ -1,7 +1,7 @@
 import { currentPlatform, detectFeatures, getProfile } from './platform.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { rms, concat, encodeWav } from './wav.js';
-import { recognize, AUDD_URL } from './recognize.js';
+import { createRecognizer, isConfigured } from './providers.js';
 import { lookupEverything, lookupReleaseCandidates, searchReleases, normalizeTitle } from './metadata.js';
 import { artistKey, trackOnRelease, rememberChoice, formatCandidate } from './albumchoice.js';
 import { Tracker } from './tracker.js';
@@ -20,7 +20,7 @@ const clipSeconds = () => settings.clipSeconds || profile.clipSeconds;
 
 const tracker = new Tracker({ silenceThreshold: profile.silenceThreshold, mode: settings.mode, vinyl: settings.vinyl });
 const albumCache = new Map();
-let endpoint = AUDD_URL;
+let relay = false; // true when served by `muninn serve`
 let busy = false;
 let view = 'idle';
 let watchUntil = 0;
@@ -155,7 +155,7 @@ async function attempt() {
     } else {
       const samples = await collect(clip);
       setStatus('Identifying…');
-      result = await recognize({ wav: encodeWav(samples, ctx.sampleRate), token: settings.token, endpoint });
+      result = await createRecognizer(settings, { relay, clipSeconds: clip })(encodeWav(samples, ctx.sampleRate));
     }
     if (myEpoch !== epoch) return; // the disc was changed while this clip was in flight
     let key = `${result.artist}|${result.album}`;
@@ -176,7 +176,7 @@ async function attempt() {
       setStatus('Could not identify this yet. Will try again.');
     } else {
       setStatus(result.message);
-      if (/token/i.test(result.message)) $('settings').showModal();
+      if (/token|credentials/i.test(result.message)) $('settings').showModal();
     }
   } catch (err) {
     setStatus(`Something went wrong: ${err.message}`);
@@ -267,13 +267,12 @@ async function keepAwake() {
   try { wakeLock = await navigator.wakeLock.request('screen'); } catch { /* not allowed right now */ }
 }
 
-async function detectEndpoint() {
-  if (settings.endpoint) return settings.endpoint;
+async function detectRelay() {
   try {
-    const res = await fetch('/api/health');
-    if (res.ok) return '/api/recognize'; // served by `muninn serve`, which relays the request
-  } catch { /* opened some other way */ }
-  return AUDD_URL;
+    return (await fetch('/api/health')).ok; // served by `muninn serve`, which relays requests
+  } catch {
+    return false; // opened some other way
+  }
 }
 
 function refreshControls() {
@@ -392,7 +391,7 @@ async function start() {
     $('start-note').textContent = `Microphone problem: ${err.message}`;
     return;
   }
-  endpoint = await detectEndpoint();
+  relay = await detectRelay();
   $('start').hidden = true;
   $('display').hidden = false;
   if (profile.fullscreen) document.documentElement.requestFullscreen?.().catch(() => {});
@@ -401,12 +400,23 @@ async function start() {
   refreshControls();
   setView('idle');
   setInterval(tick, 500);
-  if (!settings.token && !demo) $('settings').showModal();
+  if (!isConfigured(settings) && !demo) $('settings').showModal();
+}
+
+function showProviderFields() {
+  const acr = $('set-provider').value === 'acrcloud';
+  $('audd-fields').hidden = acr;
+  $('acr-fields').hidden = !acr;
 }
 
 function openSettings() {
+  $('set-provider').value = settings.provider;
   $('set-token').value = settings.token;
   $('set-endpoint').value = settings.endpoint;
+  $('set-acr-host').value = settings.acrHost;
+  $('set-acr-key').value = settings.acrKey;
+  $('set-acr-secret').value = settings.acrSecret;
+  showProviderFields();
   $('set-clip').value = settings.clipSeconds || '';
   $('set-anthropic').value = settings.anthropicKey;
   $('set-tmdb').value = settings.tmdbKey;
@@ -419,19 +429,24 @@ $('settings').addEventListener('close', async () => {
   const previousDevice = settings.deviceId;
   settings = {
     ...settings,
+    provider: $('set-provider').value,
     token: $('set-token').value.trim(),
     endpoint: $('set-endpoint').value.trim(),
+    acrHost: $('set-acr-host').value.trim(),
+    acrKey: $('set-acr-key').value.trim(),
+    acrSecret: $('set-acr-secret').value.trim(),
     clipSeconds: Number($('set-clip').value) || 0,
     anthropicKey: $('set-anthropic').value.trim(),
     tmdbKey: $('set-tmdb').value.trim(),
     deviceId: $('set-device').value,
   };
   if (!saveSettings(settings)) setStatus('Could not save settings on this device.');
-  endpoint = await detectEndpoint();
+  relay = await detectRelay();
   refreshWatchButton();
   if (settings.deviceId !== previousDevice && ctx) setStatus('Reload to use the new microphone.');
 });
 
+$('set-provider').addEventListener('change', showProviderFields);
 $('start-btn').addEventListener('click', start);
 $('start-settings-btn').addEventListener('click', openSettings);
 $('settings-btn').addEventListener('click', openSettings);
