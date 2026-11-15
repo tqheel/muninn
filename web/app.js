@@ -17,6 +17,23 @@ const features = detectFeatures();
 const profile = getProfile(platform, features);
 let settings = loadSettings();
 const demo = new URLSearchParams(location.search).has('demo') && profile.devTools;
+const debug = new URLSearchParams(location.search).has('debug');
+const debugLines = [];
+
+// ?debug=1 shows what each recognition did (no keys or audio), for chasing album mix-ups.
+function trace(line) {
+  if (!debug) return;
+  debugLines.push(`${new Date().toLocaleTimeString()} ${line}`);
+  if (debugLines.length > 12) debugLines.shift();
+  let box = document.getElementById('debug-box');
+  if (!box) {
+    box = document.createElement('pre');
+    box.id = 'debug-box';
+    box.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:60vw;margin:0;padding:6px 8px;font:11px/1.4 monospace;color:#9a9;background:#000c;white-space:pre-wrap;z-index:9';
+    document.body.append(box);
+  }
+  box.textContent = debugLines.join('\n');
+}
 const clipSeconds = () => settings.clipSeconds || profile.clipSeconds;
 
 const tracker = new Tracker({ silenceThreshold: profile.silenceThreshold, mode: settings.mode, vinyl: settings.vinyl });
@@ -160,7 +177,9 @@ async function attempt() {
     }
     if (myEpoch !== epoch) return; // the disc was changed while this clip was in flight
     let key = `${result.artist}|${result.album}`;
+    if (result.status !== 'match') trace(`${result.status}${result.message ? `: ${result.message}` : ''}`);
     if (result.status === 'match') {
+      const heard = result.album;
       const lockKey = await applyChoice(result);
       const stay = lockKey ? null : stickyKey({ mode: tracker.mode, current: tracker.current, match: result, tracks: albumCache.get(tracker.current?.cacheKey)?.tracks });
       if (lockKey) {
@@ -171,6 +190,7 @@ async function attempt() {
         result = { ...result, album: tracker.current.album };
       }
       result.cacheKey = key;
+      trace(`heard "${result.title}" on "${heard}" at ${Math.round(result.positionSeconds ?? 0)}s | ${lockKey ? 'picked release' : stay ? 'stayed on screen album' : 'looked up by name'} -> "${result.album}"`);
     }
     const outcome = tracker.applyResult(result, Date.now(), clip, albumCache.get(key)?.tracks);
     if (outcome === 'match') {
@@ -218,6 +238,7 @@ async function loadExtras(match, key) {
   const old = albumCache.get(key);
   if (old && !extras.tracks.length) extras.tracks = old.tracks; // keep what we had if the refresh found nothing
   albumCache.set(key, extras);
+  trace(`tracks for ${key.startsWith('locked:') ? 'picked release' : 'name lookup'}: ${extras.tracks.length}${extras.albumTitle ? ` ("${extras.albumTitle}")` : ''}`);
   tracker.setTracks(extras.tracks);
   if (tracker.current === match) renderNow(match, extras);
 }
