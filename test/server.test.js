@@ -34,9 +34,9 @@ test('relays recognition requests untouched', async () => {
   let seen;
   const upstreamFetch = async (url, init) => {
     seen = { url, type: init.headers['content-type'] };
-    const chunks = [];
-    for await (const c of init.body) chunks.push(c);
-    seen.body = Buffer.concat(chunks).toString();
+    // The relay sends a buffer, so the upstream request has a Content-Length.
+    assert.ok(Buffer.isBuffer(init.body));
+    seen.body = init.body.toString();
     return new Response('{"status":"success","result":null}', { status: 200, headers: { 'content-type': 'application/json' } });
   };
   await withServer({ upstream: 'http://upstream.test/', fetchImpl: upstreamFetch }, async (base) => {

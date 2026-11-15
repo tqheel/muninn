@@ -4,7 +4,6 @@
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { Readable } from 'node:stream';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -35,11 +34,20 @@ export function acrcloudUrl(host) {
 async function relay(req, res, target, fetchImpl) {
   if (req.method !== 'POST') return void res.writeHead(405).end();
   if (Number(req.headers['content-length'] ?? 0) > MAX_BODY) return void res.writeHead(413).end();
+  // Buffered so the upstream request carries a Content-Length. Some services
+  // (ACRCloud) reject a chunked upload as "Invalid http content type".
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > MAX_BODY) return void res.writeHead(413).end();
+    chunks.push(chunk);
+  }
+  const body = Buffer.concat(chunks);
   const upstreamRes = await fetchImpl(target, {
     method: 'POST',
     headers: { 'content-type': req.headers['content-type'] ?? 'application/octet-stream' },
-    body: Readable.toWeb(req),
-    duplex: 'half',
+    body,
   });
   res.writeHead(upstreamRes.status, { 'content-type': upstreamRes.headers.get('content-type') ?? 'application/json' });
   res.end(Buffer.from(await upstreamRes.arrayBuffer()));

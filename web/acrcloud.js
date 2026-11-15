@@ -57,7 +57,7 @@ export async function recognizeACRCloud({
     return { status: 'error', message: err.message };
   }
   const form = new FormData();
-  form.append('sample', new Blob([wav], { type: 'audio/wav' }), 'clip.wav');
+  form.append('sample', new Blob([wav], { type: 'application/octet-stream' }), 'clip.wav');
   form.append('sample_bytes', String(wav.length));
   form.append('access_key', accessKey);
   form.append('data_type', 'audio');
