@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>muninn</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="display" hidden>
+    <section id="now" class="now" hidden>
+      <div class="art"><img id="art" alt=""><div id="art-fallback" class="art-fallback">&#9835;</div></div>
+      <div class="info">
+        <h1 id="track"></h1>
+        <p id="album" class="album"></p>
+        <p id="artist" class="artist"></p>
+        <div class="progress" aria-hidden="true"><div id="bar"></div></div>
+        <ol id="tracklist" class="tracklist"></ol>
+        <p id="bio" class="bio"></p>
+      </div>
+    </section>
+    <section id="idle" class="idle">
+      <p id="idle-text">Waiting for music</p>
+    </section>
+    <section id="watching" class="watching" hidden>
+      <img id="poster" alt="">
+      <div>
+        <h1 id="watch-title"></h1>
+        <p id="watch-meta" class="album"></p>
+        <p id="watch-cast" class="artist"></p>
+        <p id="watch-synopsis" class="bio"></p>
+      </div>
+    </section>
+    <footer>
+      <span id="status"></span>
+      <span class="actions">
+        <button id="watch-btn" type="button" title="Identify what is on screen" hidden>What am I watching</button>
+        <button id="settings-btn" type="button">Settings</button>
+      </span>
+    </footer>
+  </main>
+
+  <section id="start" class="start">
+    <h1>muninn</h1>
+    <p>Listens to the music in the room and shows what it is.</p>
+    <p id="start-note" class="note"></p>
+    <button id="start-btn" type="button">Start listening</button>
+    <button id="start-settings-btn" type="button" class="quiet">Settings</button>
+  </section>
+
+  <dialog id="settings">
+    <form method="dialog" id="settings-form">
+      <h2>Settings</h2>
+      <p class="note">Stored on this device only.</p>
+      <label>Recognition token (AudD)
+        <input id="set-token" type="password" autocomplete="off">
+      </label>
+      <label>Microphone
+        <select id="set-device"><option value="">Default</option></select>
+      </label>
+      <label>Clip length in seconds (0 = platform default)
+        <input id="set-clip" type="number" min="0" max="30">
+      </label>
+      <label>Recognition endpoint (blank = automatic)
+        <input id="set-endpoint" type="text" placeholder="https://api.audd.io/">
+      </label>
+      <details>
+        <summary>What am I watching (experimental)</summary>
+        <label>Anthropic API key
+          <input id="set-anthropic" type="password" autocomplete="off">
+        </label>
+        <label>TMDB API key
+          <input id="set-tmdb" type="password" autocomplete="off">
+        </label>
+      </details>
+      <div class="row">
+        <button value="save" id="save-btn">Save</button>
+        <button value="cancel" class="quiet">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -7,5 +7,9 @@
   "type": "module",
   "bin": {
     "muninn": "./bin/muninn.js"
+  },
+  "scripts": {
+    "start": "node bin/muninn.js serve --open",
+    "test": "node --test"
   }
 }
