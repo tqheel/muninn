@@ -85,7 +85,11 @@ Still to do:
 - Settle which service to keep, based on accuracy and what I actually spend.
 - If the microphone is not accurate enough, tap the receiver's output directly.
 
-## Running it
+## Using it on the Chromebook (no install)
+
+The display is published as a static page at **https://tqheel.github.io/muninn/**, rebuilt from `web/` on every push to `main`. It is served over HTTPS, so the microphone works, and both recognition services accept calls straight from the browser, so no server is needed. Open it, press Settings, enter my keys once, and start. Keys stay in that browser and are not part of the published files.
+
+## Running it on the Mac
 
 You need Node 20 or newer and nothing else. There is nothing to install.
 

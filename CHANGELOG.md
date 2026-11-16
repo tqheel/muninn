@@ -6,6 +6,9 @@ everything is under Unreleased, grouped by the commit that introduced it.
 
 ## [Unreleased]
 
+### GitHub Pages
+- Added a workflow that publishes the `web/` folder to GitHub Pages on every push to `main`, so the Chromebook can open the display with no install. Credentials are still typed into each browser and are not part of the published files.
+
 ### Documentation and agent rules
 - Rewrote the README status and roadmap now that it has run with real music, and added a Recognition services section that explains how to set up AudD and ACRCloud.
 - Added this changelog, built from the git history.
