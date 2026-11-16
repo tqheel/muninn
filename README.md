@@ -4,7 +4,7 @@ A display that listens to whatever is playing in the room and tells me what it i
 
 In Norse myth, Odin sends his two ravens out every day to see and hear the world, and they come back and tell him what they learned. Huginn is thought. Muninn is memory. This is the second one.
 
-**Status: built, not yet proven on my own collection.** The display, the recognition loop, the album and artist lookups and the track-change logic are written and tested with fake data. I have not yet run it against real music through a real microphone, because that needs my recognition token and the Chromebook. Until I have, treat the accuracy as unknown.
+**Status: working on the Mac with real music, not yet on the Chromebook.** I have run it against real CDs and records through a real microphone with both recognition services, and it names the artist, album and track and follows the album in order. I have not yet tried a real record flip. The Chromebook, the "what am I watching" feature and long unattended runs are still untested. Accuracy on a whole collection is still unmeasured, and the recognition services sometimes name the wrong release, which is what the **Wrong album?** button is for.
 
 ## Why I am building this
 
@@ -43,25 +43,47 @@ The same idea for the screen: if I am watching a movie or a show, muninn tells m
 
 I develop and test on a Mac. It is meant to run on an old Chromebook that I will leave next to the stereo as the display.
 
+## Recognition services
+
+muninn needs one service to turn a short clip into a song. It supports two, chosen in Settings, and each keeps its own saved credentials, so I can switch back and forth without retyping anything.
+
+**AudD** ([audd.io](https://audd.io))
+1. Create an account and copy the API token from the dashboard.
+2. In muninn, open Settings, choose AudD, and paste the token. Leave the endpoint on Automatic.
+3. Cost, as I understand it: a flat monthly plan (about $5 for 1,000 requests) that resets each month whether I listen or not, plus a one-time allowance of free requests at signup. Check their site for current prices.
+
+**ACRCloud** ([acrcloud.com](https://www.acrcloud.com))
+1. Sign up at console.acrcloud.com. The trial lasts 14 days, so I start it only when I am ready to test.
+2. Create an audio recognition project, choose the ACRCloud Music bucket (the large commercial catalog) and the recorded audio source.
+3. In muninn, open Settings, choose ACRCloud, pick the region shown on the project, and enter the access key and access secret.
+4. Cost: after the trial it is pay for what I use. I have not confirmed the price per request, because it is behind their login.
+
+I have not checked either service's retention policy for the clips they receive.
+
+Both work through the relay in `muninn serve`, which forwards the clip and keeps nothing. ACRCloud requests are signed in the browser, so the secret never leaves the device. For a different service, write one small client that returns the same result shape and add it to `web/providers.js`.
+
 ## Privacy
 
-The recognition service receives short clips of audio. That is the whole data flow. muninn does not keep a listening history, and nothing about me or my collection lives in this repository. API tokens are entered in the app on each device and are never committed.
+The recognition service I choose receives short clips of audio. That is the whole data flow. muninn does not keep a listening history, and nothing about me or my collection lives in this repository. API tokens are entered in the app on each device and are never committed.
 
 ## Roadmap
 
-Done, with tests on fake data:
+Done:
 
-0. Project setup and platform detection.
-2. Album, art and artist lookups.
-3. The display.
-4. Predicting track changes.
-6. Idle and no-match states.
-7. Movie and show recognition (experimental).
+- Project setup and platform detection.
+- The display, album and artist lookups, and track-change prediction.
+- Album mode, shuffle mode, vinyl flips and manual refresh.
+- Choosing the right release when the service names the wrong one.
+- Two recognition services, AudD and ACRCloud, tested with real music on the Mac.
+- Idle and no-match states.
+- Movie and show recognition (experimental, tested only with fake data).
 
-Waiting on me:
+Still to do:
 
-1. Test recognition with the microphone against my own CDs and records. This decides whether AudD is good enough or I need another service.
-5. If the microphone is not accurate enough, tap the receiver's output directly.
+- Set it up on the Chromebook and check the microphone, fullscreen and keeping the screen awake.
+- Run it for days and see whether it stays reliable.
+- Settle which service to keep, based on accuracy and what I actually spend.
+- If the microphone is not accurate enough, tap the receiver's output directly.
 
 ## Running it
 
@@ -71,9 +93,9 @@ You need Node 20 or newer and nothing else. There is nothing to install.
 node bin/muninn.js serve --open
 ```
 
-That serves the display on `http://localhost:8080` and relays recognition requests, so the browser never has to talk to the recognition service directly. Click Start, allow the microphone, and pick a recognition service in Settings: an [AudD](https://audd.io) token, or an [ACRCloud](https://www.acrcloud.com) host, access key and access secret. Credentials stay in that browser. ACRCloud signs each request on the device, so the secret itself is never sent anywhere.
+That serves the display on `http://localhost:8080` and relays recognition requests, so the browser never has to talk to the recognition service directly. Click Start, allow the microphone, and pick a recognition service in Settings (see Recognition services above). Credentials stay in that browser.
 
-On the Mac, `?demo=1` on the address runs the whole display with canned results and no microphone, which is how I develop the layout.
+On the Mac, `?demo=1` on the address runs the whole display with canned results and no microphone, which is how I develop the layout. `?debug=1` adds a small log of what each recognition did, for working out why it picked an album.
 
 To measure how well recognition works on your own collection, put short clips in a folder named like `Artist - Title.wav` (they are ignored by git) and run:
 
@@ -81,7 +103,7 @@ To measure how well recognition works on your own collection, put short clips in
 RECOGNITION_API_TOKEN=... node bin/muninn.js eval path/to/clips
 ```
 
-It prints a hit, wrong or miss for each clip and an overall hit rate.
+For ACRCloud, set `RECOGNITION_PROVIDER=acrcloud`, `ACRCLOUD_HOST`, `ACRCLOUD_ACCESS_KEY` and `ACRCLOUD_ACCESS_SECRET` instead. `.env.example` shows both. It prints a hit, wrong or miss for each clip and an overall hit rate.
 
 ## Development
 
@@ -89,7 +111,7 @@ It prints a hit, wrong or miss for each clip and an overall hit rate.
 npm test
 ```
 
-The tests use the Node test runner and fake network responses. The web app is plain ES modules with no build step: `web/` holds the display and `src/` holds the small server and the evaluation script.
+The tests use the Node test runner and fake network responses. Changes are recorded in [CHANGELOG.md](CHANGELOG.md). The web app is plain ES modules with no build step: `web/` holds the display and `src/` holds the small server and the evaluation script.
 
 ## License
 
